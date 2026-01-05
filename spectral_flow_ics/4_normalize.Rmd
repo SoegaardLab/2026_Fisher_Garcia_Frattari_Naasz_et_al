@@ -1,0 +1,329 @@
+---
+title: "Batch Normalization (cyCombine)"
+author: "*Lisa Loksø Dietz*"
+date: "*`r format(Sys.time(), '%Y-%m-%d')`*"
+knit: (function(inputFile, encoding) { 
+      out_dir = paste0(dirname(getwd()),"/3_output");
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(out_dir, '4_Normalization.html')) })
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    toc_collapsed: true
+    code_folding: show
+---
+
+
+```{r Markdown setup 1, include = FALSE}
+
+knitr::opts_chunk$set(fig.width=10, fig.height=7, out.width = "70%",fig.align = 'center', eval=FALSE, root.dir = getwd()) 
+
+```
+
+## 0) Load source and set dir
+
+```{r Directories, message = FALSE, warning = FALSE}
+
+rm(list=ls())
+source("0_source.R")
+
+```
+
+
+## 1) Import data
+
+### 1.1) Cleaned flowSet
+
+```{r Importing FCS files, message = FALSE}
+
+fs_clean = readRDS(file=glue("{dir_project}/2_pipeline/{folder_QC}/out/FlowSet_clean.rds"))
+
+```
+
+
+
+### 1.2) Panel
+
+```{r Panel, message = FALSE}
+
+panel = read.csv(file=glue("{dir_project}/2_pipeline/{folder_transform}/out/Panel.csv"))[,-1]
+
+```
+
+## 2) Batch normalization
+
+### 2.1) Define anchor sample
+
+```{r}
+
+pd = read.csv(file = glue("{dir_project}/2_pipeline/{folder_transform}/out/pData.csv"))[,-1]
+pData(fs_clean)$sample_id = str_replace(sapply(str_split(rownames(pData(fs_clean)),"_",2),"[[",2),"_WLSM_tf_QC.fcs","")
+  
+pd = pd[,c("sample_id","date","batch","Trial","Condition","PID", "Visit","Stimulation")]
+
+fs_clean = q_MergeMetadataFlowSet(fs_clean, pd, "sample_id")
+
+```
+
+
+```{r Metadata for cyCombine, message = FALSE}
+
+# add anchor
+pData(fs_clean)$anchor = ifelse(grepl("eclear_107_v31_gag",pData(fs_clean)$sample_id),1,0)
+pData(fs_clean)
+
+```
+
+
+### 2.2) Detect batch effects
+
+```{r check batch effect, message = TRUE}
+
+set.seed(434)
+markers = panel[panel$marker_class != 'none', "antigen"]
+
+fs = fs_clean
+
+uncorrected = prepare_data(flowset = fs,
+                           metadata = pData(fs),
+                           panel = panel[panel$marker_class != 'none', ],
+                           filename_col = "name",
+                           batch_ids = "batch",
+                           condition = "Stimulation",
+                           anchor = "anchor",
+                           panel_channel = "fcs_colname",
+                           panel_antigen = "antigen",
+                           clean_colnames = F,
+                           down_sample = F,
+                           derand = FALSE,
+                           transform = FALSE)
+
+write_dir = glue("{dir_store}/batch_effect_check")
+dir.create(write_dir, showWarnings = F)
+detect_batch_effect(uncorrected,
+                    batch_col = "batch",
+                    out_dir = write_dir,
+                    xdim = 10,
+                    ydim = 10,
+                    seed=434)
+
+```
+
+### 2.3) Correct batch effects
+
+```{r batch_correct, message = FALSE}
+
+set.seed(1234)
+corrected = batch_correct(uncorrected,
+                          anchor = "anchor",
+                          xdim = 10,
+                          ydim = 10,
+                          seed = 473,
+                          markers = markers,
+                          norm_method = "scale")
+
+```
+
+
+### 2.4) Performance evaluation
+
+##### EMD
+
+```{r Evaluate performance with EMD, message = FALSE}
+
+markers = panel[panel$marker_class != "none", "antigen"]
+
+set.seed(1234)
+# Re-run clustering on corrected data
+labels = corrected %>% 
+  create_som(markers = markers,
+             rlen = 10,
+             xdim = 10,
+             ydim = 10)
+uncorrected$label = corrected$label = labels
+
+# Evaluate EMD
+emd = evaluate_emd(uncorrected, corrected, cell_col = "label")
+
+# Reduction
+emd$reduction
+
+```
+
+```{r}
+
+emd$violin
+emd$scatter
+
+```
+
+##### UMAP
+
+```{r}
+
+markers_plot = panel %>% dplyr::filter(marker_class != "none",
+                                  !antigen %in% c("FSC","SSC"))%>%pull(antigen)
+sam = sample(1:nrow(uncorrected), 30000)
+
+plot1 = plot_dimred(uncorrected[sam, ], 
+                    "Uncorrected",
+                    type = "umap", 
+                    plot = "batch", 
+                    markers = markers_plot)+
+  guides(color = guide_legend(override.aes = list(size = 3)))
+plot1[["layers"]][[1]][["aes_params"]][["shape"]]=16
+plot1[["layers"]][[1]][["aes_params"]][["alpha"]] = 1
+
+plot2 = plot_dimred(corrected[sam, ], 
+                    "Corrected", 
+                    type = "umap", 
+                    plot = "batch", 
+                    markers = markers_plot)+
+  guides(color = guide_legend(override.aes = list(size = 3)))
+plot2[["layers"]][[1]][["aes_params"]][["shape"]]=16
+plot2[["layers"]][[1]][["aes_params"]][["alpha"]] = 1
+
+
+plot1+plot2+plot_layout(guides="collect")
+
+```
+
+##### 2D scatter
+
+```{r}
+
+palette_pointdensity = colorRampPalette(c("#000099", "#00FEFF", "#45FE4F", 
+                            "#FCFF00", "#FF9400", "#FF3100"))(256)
+
+sample_size = 10000
+
+df_plot_long_uncorrected = uncorrected %>%
+  select(-c(id,label,condition,anchor))%>%
+  dplyr::filter(grepl("107_v31_",sample,perl = T))%>%
+  group_by(sample)%>%
+  sample_n(sample_size)%>%
+  pivot_longer(cols = -c(sample, batch),
+               names_to = "Marker",
+               values_to = "Exprs")%>%
+  mutate(batch = factor(batch, levels = levels_batches))
+
+udf_plot_long_corrected = corrected %>%
+  select(-c(id,label,condition,anchor))%>%
+  dplyr::filter(grepl("107_v31_",sample,perl = T))%>%
+  group_by(sample)%>%
+  sample_n(sample_size)%>%
+  pivot_longer(cols = -c(sample, batch),
+               names_to = "Marker",
+               values_to = "Exprs")%>%
+  mutate(batch = factor(batch, levels = levels_batches))
+
+
+
+df_plot_long_uncorrected$batch_num = as.numeric(df_plot_long_uncorrected$batch)
+df_plot_long_corrected$batch_num = as.numeric(df_plot_long_corrected$batch)
+
+p1 = df_plot_long_uncorrected %>%
+  group_by(batch,Marker) %>%
+  mutate(
+    scaled_y = scale(Exprs)[, 1],  # z-score within batch
+    base_jitter = runif(n(), -0.15, 0.15),  # constant base jitter for all points
+    density_scaled_jitter = rnorm(n(), mean = 0, sd = 0.25 * dnorm(scaled_y)),  # add more for dense regions
+    x_blob = batch_num[1] + base_jitter + density_scaled_jitter
+  ) %>%
+  ungroup()%>%
+  ggplot(aes(x = x_blob, y = Exprs))+
+  geom_hex(bins = 200) +
+  facet_wrap2(~Marker,
+              ncol = 9)+
+  scale_fill_gradientn(colors = palette_pointdensity) +
+  scale_x_continuous(
+    breaks = sort(unique(df_plot_long_uncorrected$batch_num)),
+    labels = sort(unique(df_plot_long_uncorrected$batch)),
+    expand = expansion(mult = c(0.05, 0.05))
+  ) +
+  labs(x = "Batch", y = "") +
+  theme_classic()+
+  ggtitle("Uncorrected")+
+  theme(plot.title = element_text(hjust=.5,
+                                    face="bold"),
+          legend.position = "none",
+          panel.grid.major.y = element_line(linewidth = 0.08, 
+                                            linetype = 'solid',
+                                            colour = "grey60"))+
+  ylim(c(-.5,5))
+
+p2 = df_plot_long_corrected %>%
+  group_by(batch,Marker) %>%
+  mutate(
+    scaled_y = scale(Exprs)[, 1],  # z-score within batch
+    base_jitter = runif(n(), -0.15, 0.15),  # constant base jitter for all points
+    density_scaled_jitter = rnorm(n(), mean = 0, sd = 0.25 * dnorm(scaled_y)),  # add more for dense regions
+    x_blob = batch_num[1] + base_jitter + density_scaled_jitter
+  ) %>%
+  ungroup()%>%
+  ggplot(aes(x = x_blob, y = Exprs))+
+  geom_hex(bins = 200) +
+  facet_wrap2(~Marker,
+              ncol = 9)+
+  scale_fill_gradientn(colors = palette_pointdensity) +
+  scale_x_continuous(
+    breaks = sort(unique(df_plot_long_corrected$batch_num)),
+    labels = sort(unique(df_plot_long_corrected$batch)),
+    expand = expansion(mult = c(0.05, 0.05))
+  ) +
+  labs(x = "Batch", y = "") +
+  theme_classic()+
+  ggtitle("Corrected")+
+  theme(plot.title = element_text(hjust=.5,
+                                    face="bold"),
+          legend.position = "none",
+          panel.grid.major.y = element_line(linewidth = 0.08, 
+                                            linetype = 'solid',
+                                            colour = "grey60"))+
+  ylim(c(-.5,5))
+
+p1+p2
+
+```
+
+
+## 3) Save normalized data
+
+### 3.1) Recreate flowSet
+
+```{r Make data into sce and FlowSet, message = FALSE}
+
+sce_norm = df2SCE(corrected2,
+                  sample_col = "sample",
+                  panel = panel[panel$marker_class != 'none', ],
+                  panel_channel = "fcs_colname",
+                  panel_antigen = "antigen",
+                  panel_type = "marker_class")
+
+fs_norm = sce2fcs(sce_norm,
+                  split_by = "sample_id",
+                  assay = "exprs")
+
+# add suffix _norm to normalized
+fs_norm = q_PrefixSuffixSampleNames(fs_norm, "suffix", "_norm")
+
+```
+
+### 3.2) Save flowSet
+
+```{r Read files, message = FALSE}
+
+saveRDS(fs_norm, file = glue("{dir_out}/FlowSet_norm_new.rds"))
+
+```
+
+## 4) Session info
+
+```{r Session info, message = TRUE}
+
+sessionInfo()
+
+```

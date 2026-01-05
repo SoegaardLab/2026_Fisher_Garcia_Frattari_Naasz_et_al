@@ -1,0 +1,116 @@
+---
+title: "Data transformation"
+author: "*Lisa Loksø Dietz*"
+date: "*`r format(Sys.time(), '%Y-%m-%d')`*"
+knit: (function(inputFile, encoding) { 
+      out_dir = paste0(dirname(getwd()),"/3_output");
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(out_dir, '1_Transformation.html')) })
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    toc_collapsed: true
+    code_folding: show
+---
+
+```{r Markdown setup 1, include = FALSE}
+
+knitr::opts_chunk$set(fig.width=10, fig.height=7, out.width = "70%",fig.align = 'center', eval=FALSE) 
+
+```
+
+
+
+
+## 0) Load source code
+
+
+```{r Directories, message = FALSE, warning = FALSE}
+
+rm(list=ls())
+source("0_source.R")
+
+```
+
+
+## 1) Load data
+
+```{r}
+
+fs = read.flowSet(path = glue("{dir_project}/0_data/FCS_files"), 
+                  pattern="*.fcs", 
+                  transformation = FALSE, 
+                  truncate_max_range = FALSE)
+
+
+```
+
+
+## 2) Metadata 
+
+### 2.1) Experiment info
+
+
+```{r}
+
+df_pData = read.csv(file = glue("{dir_out}/pData.csv"))
+pData(fs) = df_pData
+
+```
+
+
+### 2.2) Panel
+
+```{r Save panel, message = FALSE}
+
+features_type = c("CD3","CD4","CD8","CD19","CD16","CCR7","CD45RA","CD95","CD27","FoxP3")
+features_state = c("TIGIT", "CXCR5", "Tbet","CD25","TNFa","CCR4","Perforin","CD39", "CD107a", "PD1","TCF1","IFN","Granulysin","GzmB","GzmK","IL2", "IL4_13","Ki67")
+
+panel = q_DefinePanel(fs, features_type, features_state)
+
+```
+
+```{r}
+
+write.csv(panel, file=glue("{dir_out}/Panel.csv"))
+
+```
+
+
+## 3) Transformation
+
+### 3.1) Transform data
+
+```{r Transform with estimateLogicle, message=FALSE}
+
+fs_transform = q_TransformEstimateLogicle(fs,
+                                          ref_samplename = "A02_eclear_104_v13_neg_WLSM.fcs",
+                                          add_suffix = "_tf",
+                                          panel = panel,
+                                          seed = 1234,
+                                          plot = TRUE)
+
+
+```
+
+
+### 3.2) Save transformed data
+
+The transformed flowSet is saved as an RDS file: 
+
+```{r Save transformed, message = FALSE, eval = FALSE}
+
+saveRDS(fs_transform, file=glue("{dir_out}/FlowSet_transform.rds"))
+
+```
+
+## 4) Session info
+
+```{r Session info, message = TRUE}
+
+sessionInfo()
+
+```

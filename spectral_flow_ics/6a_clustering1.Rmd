@@ -1,0 +1,231 @@
+---
+title: "Clustering main cell types"
+author: "*Lisa Loksø Dietz*"
+date: "*`r format(Sys.time(), '%Y-%m-%d')`*"
+knit: (function(inputFile, encoding) { 
+      out_dir = paste0(dirname(getwd()),"/3_output");
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(out_dir, '6a_Clustering1.html')) })
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    toc_collapsed: true
+    code_folding: show
+---
+
+```{r Setup 1, include = FALSE}
+
+knitr::opts_chunk$set(fig.width=10, fig.height=7, out.width = "70%",fig.align = 'center', eval = FALSE) 
+
+```
+
+
+## 0) Load source code
+
+
+```{r Directories, message = FALSE, warning=FALSE}
+
+rm(list = ls())
+source("0_source.R")
+
+```
+
+
+## 1) Load data
+
+### 1.1) Normalized data 
+
+
+```{r Read flowSet, message = FALSE}
+
+fs_norm = readRDS(glue("{dir_project}/2_pipeline/4_cyCombine/out/FlowSet_norm_new.rds"))
+pData(fs_norm)
+
+```
+
+
+### 1.2) Panel
+
+```{r Read panel, message = FALSE}
+
+panel = read.csv(file=glue("{dir_project}/2_pipeline/{folder_transform}/out/Panel.csv"))[,-1]
+panel = panel[panel$marker_class != "none",]
+kable(panel)
+
+```
+
+
+## 2) Prepare data
+
+### 2.1) Create single cell experiment (SCE)
+
+```{r Create SCE}
+
+set.seed(1234)
+sce = prepData(fs_norm, 
+               md = pData(fs_norm), 
+                panel = panel, 
+                features = panel$fcs_colname, 
+                FACS = TRUE, 
+                transform = FALSE, 
+                panel_cols = list(channel = "fcs_colname", 
+                                  antigen = "antigen" 
+                                  ), 
+                md_cols = list(file = "name", 
+                               id = "sample_id", 
+                               factors = c("Trial", "Condition","PID", "Visit", "Stimulation", "batch"))) 
+
+assayNames(sce)[1] = "exprs"
+
+```
+
+### 2.2) Filter SCE
+
+```{r}
+
+colData(sce)$Original_cellID = as.numeric(rownames(data.frame(colData(sce)))) # add original cell ID before filtering
+sce = filterSCE(sce,
+                PID %in% c("104","112","107","142"))
+
+```
+
+
+## 3) Clustering and dimensionality reduction
+
+### 3.1) FlowSOM clustering 
+
+```{r}
+
+markers_clustering = markers_dimred = c("CD8","CD4","CD3","CD16","CD19") # the canonical lineage markers used for main clustering
+set.seed(1234)
+sce = cluster(sce,
+              features = c(panel[panel$antigen %in% markers_clustering,"antigen"]),
+              maxK = 15,
+              xdim = 10,
+              ydim = 10,
+              verbose = TRUE,
+              seed = 1234)
+
+
+```
+
+### 3.2) Create UMAP 
+
+```{r}
+
+set.seed(1234)
+sce = runDR(sce,
+               "UMAP",
+               cells = 10000,
+               features = markers_dimred)
+
+```
+
+### 3.3) Investigate clusters
+
+```{r}
+
+markers_plot = markers_clustering
+palette_meta11 = c("#8dd3c7","#bebada","#fb8072","#80b1d3", "#fdb462","#bc80bd","#ffed6f","#ffb3b3","#a6d854", "#66c2a5","#e78ac3")
+
+plotDR(q_DownsampleSCE(sce,10000),
+       color_by = "meta11")+
+  scale_color_manual(values = palette_meta11) +
+  theme(legend.title = element_text(size=12),
+        legend.text = element_text(size=12))+ 
+  guides(colour = guide_legend(override.aes = list(size=5)))
+
+plotDR(q_DownsampleSCE(sce,4000),
+       color_by = c("CD3","CD8","CD4","CD16","CD19"),
+       a_pal =  brewer.pal(9,"YlOrRd"),
+       ncol = 5)
+
+```
+
+
+### 3.4) Annotate clusters
+
+```{r}
+
+annotation = list("1. NK cells CD8dim" = c(1),
+                  "2. NK cells CD8-" = c(2),
+                  "3. B cells" = c(3),
+                  "4. CD3-CD16-CD19- Lymphocytes" = c(4),
+                  "5. CD8+ T cells (CD8dimCD16dim)" = c(5),
+                  "6. CD4-CD8- T cells" = c(6),
+                  "7. CD8+ T cells" = c(7),
+                  "8. CD4-CD8- T cells (CD8dim)" = c(8),
+                  "9. CD4 T cells" = c(9),
+                  "10. CD3dimCD4+" = c(10),
+                  "11. CD4+CD8+ T cells" = c(11))
+
+sce = q_AnnotateClusters(sce = sce,
+                         clusterList = annotation,
+                         new_id = "cell_type_cluster1")
+
+colData(sce)$cell_type_cluster1 = cluster_ids(sce, k = "cell_type_cluster1")
+
+```
+
+### 3.5) Plot results
+
+```{r}
+
+palette_meta11 = c("#8dd3c7","#bebada","#fb8072","#80b1d3", "#fdb462","#bc80bd","#ffed6f","#ffb3b3","#a6d854", "#66c2a5","#e78ac3")
+
+p_features = plotDR(q_DownsampleSCE(sce,10000),
+       color_by = c("CD3","CD8","CD4","CD16","CD19"),
+       ncol = 5,
+       a_pal = brewer.pal(9,"YlOrRd"))
+
+library(ggpubr)
+p_meta11 = q_plotDR(q_DownsampleSCE(sce,1000),
+         color_by = "cell_type_cluster1",
+         k_pal = palette_meta11)+
+  theme(legend.title = element_blank())
+leg = as_ggplot(get_legend(p_meta11))
+
+p_meta11 = q_plotDR(q_DownsampleSCE(sce,10000),
+         color_by = "meta11",
+         k_pal = palette_meta11)+
+  theme(legend.position = "none")
+
+p_meta11_highlight = q_plotDR(q_DownsampleSCE(sce,10000),
+         color_by = "meta11",
+         highlight_clust = c(5,7,9),
+         k_pal = palette_meta11)+
+  theme(legend.position = "none")
+
+design = "
+AAAAA
+BBCCD
+BBCCD
+"
+p_features + p_meta11+p_meta11_highlight+leg+plot_layout(design = design)+plot_annotation(tag_levels = list(c("A","B","C","")))&theme(plot.tag = element_text(face = 'bold',size = 14))
+ggsave(glue("{dir_out}/SuppFigXX.png"),width = 17*.75, height = 10*.75, units = "in")
+ggsave(glue("{dir_out}/SuppFigXX.tiff"),width = 17*.75, height = 10*.75, units = "in")
+ggsave(glue("{dir_out}/SuppFigXX.svg"),width = 17*.75, height = 10*.75, units = "in")
+
+```
+
+
+## 4) Save clustered data
+
+```{r}
+
+saveRDS(sce, file = glue("{dir_out}/sce_clust1.rds"))
+
+```
+
+
+## 5) Session info
+
+```{r Session info, message = TRUE}
+
+sessionInfo()
+
+```
+

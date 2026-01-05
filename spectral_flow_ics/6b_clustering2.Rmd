@@ -1,0 +1,362 @@
+---
+title: "Subclustering CD4 and CD8 T cells"
+author: "*Lisa Loksø Dietz*"
+date: "*`r format(Sys.time(), '%Y-%m-%d')`*"
+knit: (function(inputFile, encoding) { 
+      out_dir = paste0(dirname(getwd()),"/3_output");
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(out_dir, '6b_Subclustering.html')) })
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    toc_collapsed: true
+    code_folding: show
+---
+
+```{r Setup 1, include = FALSE}
+
+knitr::opts_chunk$set(fig.width=10, fig.height=7, out.width = "70%",fig.align = 'center', eval = FALSE) 
+
+```
+
+
+## 0) Load source code
+
+
+```{r Directories, message = FALSE, warning=FALSE}
+
+rm(list = ls())
+source("0_source.R")
+
+```
+
+
+## 1) Load data
+
+
+### 1.1) Clustered SCE
+
+```{r Read SCE, message = FALSE}
+
+sce = readRDS(glue("{dir_project}/2_pipeline/6_clustering1/out/sce_clust1.rds"))
+
+```
+
+### 1.2) Panel
+
+```{r Read panel, message = FALSE}
+
+panel = read.csv(file=glue("{dir_project}/2_pipeline/{folder_transform}/out/Panel.csv"))[,-1]
+kable(panel)
+
+```
+
+## 2) Cluster seperately
+
+### 2.1) Split SCE into CD4 and CD8 T cells
+
+```{r}
+
+sce_CD4 = filterSCE(sce,
+                    cell_type_cluster1 == "9. CD4 T cells")
+
+
+sce_CD8 = filterSCE(sce,
+                    cell_type_cluster1 %in% c("5. CD8+ T cells (CD8dimCD16dim)","7. CD8+ T cells"))
+
+```
+
+### 2.2) Compute non-redundancy scores (NRS)
+
+```{r}
+
+features_effector = c("Perforin", "Granulysin", "GzmB", "GzmK")
+features_memory = c("CD45RA","CCR7","CD27","CD95")
+features_add_CD4 = c(features_memory, "FoxP3","Ki67", "CCR4","CXCR5","Tbet")
+features_add_CD8 = c(features_memory, "Ki67","CCR4")
+
+features_wo_effector = setdiff(panel[panel$marker_class %in% c("type","state"),"antigen",drop=T],c(features_effector,"IL4_13"))
+
+```
+
+
+
+```{r}
+
+p1 = plotNRS(sce_CD8, features = features_wo_effector, color_by = "Condition")+
+  scale_color_manual(values = palette)
+
+p2 = plotNRS(sce_CD4, features = features_wo_effector, color_by = "Condition")+
+  scale_color_manual(values = palette)
+
+p1$layers <- p1$layers[2:length(p1$layers)]
+p2$layers <- p2$layers[2:length(p2$layers)]
+
+palette_meta11 = c("#8dd3c7","#bebada","#fb8072","#80b1d3", "#fdb462","#bc80bd","#ffed6f","#ffb3b3","#a6d854", "#66c2a5","#e78ac3")
+
+df_NRS_CD8 = p1$data[,c("antigen","NRS")]
+
+markers_CD8 = c(levels(p1$data$antigen)[c(1:10)],"CCR4")
+
+bold.labels <- ifelse(levels(df_NRS_CD8$antigen) %in% markers_CD8, yes = "bold", no = "plain")
+col.labels <- ifelse(levels(df_NRS_CD8$antigen) %in% markers_CD8, yes = "#b86202", no = "grey40")
+
+p_NRS_CD8 = df_NRS_CD8 %>% 
+  ggplot(aes(x = antigen,
+             y=NRS))+
+  geom_boxplot(outliers = F,
+             fill = palette_meta11[7],
+             color = palette_meta11[5])+
+  theme_minimal()+ 
+  theme(axis.line = element_line(colour = "black",
+                                   linetype = "solid"),
+        axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5, 
+                                   hjust=1,
+                                   face = bold.labels,
+                                   colour = col.labels))+
+  ylab("Non-redundancy score (NRS)")+
+  xlab(NULL)+
+  geom_vline(xintercept = c(10.5),
+             linetype = "dashed")
+
+df_NRS_CD4 = p2$data[,c("antigen","NRS")]
+
+markers_CD4 = c(levels(p2$data$antigen)[c(1:10)],"Tbet","CXCR5")
+
+bold.labels <- ifelse(levels(df_NRS_CD4$antigen) %in% markers_CD4, yes = "bold", no = "plain")
+col.labels <- ifelse(levels(df_NRS_CD4$antigen) %in% markers_CD4, yes = "#5c811e", no = "grey40")
+
+p_NRS_CD4 = df_NRS_CD4 %>% 
+  ggplot(aes(x = antigen,
+             y=NRS))+
+  geom_boxplot(outliers = F,
+             fill = alpha(palette_meta11[9],.5),
+             color = palette_meta11[9])+
+  theme_minimal()+ 
+  theme(axis.line = element_line(colour = "black",
+                                   linetype = "solid"),
+        axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5, 
+                                   hjust=1,
+                                   face = bold.labels,
+                                   colour = col.labels))+
+  xlab(NULL)+
+  ylab("Non-redundancy score (NRS)")+
+  geom_vline(xintercept = c(10.5),
+             linetype = "dashed")
+
+
+
+p_NRS_CD8+p_NRS_CD4 +plot_annotation(tag_levels = 'A')&theme(plot.tag = element_text(size = 20, face = 'bold'))
+
+ggsave(filename = glue("{dir_store}/NRS.png"),width = 18,height = 6, units = "in")
+
+```
+
+
+## 3) Subclustering and dimensionality reduction
+
+### 3.1) FlowSOM clustering
+
+```{r}
+
+# CD4
+set.seed(1234)
+sce_CD4 = cluster(sce_CD4,
+                      features = markers_CD4,
+                      maxK = 15,
+                      xdim = 10,
+                      ydim = 10,
+                      verbose = TRUE,
+                      seed = 1234)
+
+# CD8 
+set.seed(1234)
+sce_CD8 = cluster(sce_CD8,
+                      features = markers_CD8,
+                      maxK = 15,
+                      xdim = 10,
+                      ydim = 10,
+                      verbose = TRUE,
+                      seed = 1234)
+
+```
+
+###  3.2) Create UMAP
+
+```{r}
+
+# CD4
+set.seed(1234)
+sce_CD4 = runDR(sce_CD4,
+                "UMAP",
+                cells = 10000,
+                features = markers_CD4)
+
+# CD8 
+set.seed(1234)
+sce_CD8 = runDR(sce_CD8,
+                "UMAP",
+                cells = 10000,
+                features = markers_CD8)
+
+
+```
+
+### 3.3) Investigate clusters
+
+```{r}
+
+markers_CD8 = c("CD45RA","CD27","CD95","CCR7","TCF1","CD16","TIGIT","Tbet","CD39","Ki67","CCR4")
+markers_CD4 = c("CD45RA","CD95","CCR7","CD27","CCR4","TCF1","CD39","TIGIT","FoxP3","Ki67","Tbet","CXCR5")
+
+pA = plotDR(q_DownsampleSCE(sce_CD4,1000),
+       color_by = markers_CD4,
+       ncol = 6,
+       a_pal =  brewer.pal(9,"YlOrRd"))
+
+
+pB = plotDR(q_DownsampleSCE(sce_CD8,1000),
+       color_by = markers_CD8,
+       ncol = 6,
+       a_pal =  brewer.pal(9,"YlOrRd"))+xlim(c(-10,10))
+
+pB+pA+plot_layout(ncol=1,guides = "collect")+plot_annotation(tag_levels = "A")&
+    theme(plot.tag = element_text(face = 'bold'))
+ggsave(filename=glue("{dir_out}/SuppFig15.tiff"),height = 8,width = 10,units = "in")
+ggsave(filename=glue("{dir_out}/SuppFig15.svg"),height = 8,width = 10,units = "in")
+ggsave(filename=glue("{dir_out}/SuppFig15.png"),height = 8,width = 10,units = "in")
+
+```
+
+
+### 3.4) Annotate clusters
+
+```{r}
+
+annotation_CD4 = list("1. CD4 Naive" = c(1),
+                      "2. rTreg (CD45RA+FoxP3dimTCF1+)" = c(2),
+                      "3. Unknown (CD95-CD27-)" = c(3),
+                      "4. CD4 EMRA (Tbet+)" = c(4),
+                      "5. CD4 Central memory" = c(5),
+                      "6. CD4 Pre-effector (TIGIT+)" = c(6),
+                      "7. CD4 Effector memory" = c(7),
+                      "8. CD4 Central memory (CD39+)"  = c(8),
+                      "9. CD4 Effector memory (Tbet+Ki67+)" = c(9),
+                      "10. iTreg (CD45RA-FoxP3dim)" = c(10),
+                      "11. CD4 Effector memory (CD39+Ki67+)" = c(11),
+                      "12. CD4 Central memory (Ki67+)" = c(12),
+                      "13. CD4 Effector memory" = c(13),
+                      "14. aTreg (CD45RA-FoxP3brightCD39+)" = c(14),
+                      "15. CD4 Effector memory (CCR4+)" = c(15)
+                      )
+
+sce_CD4 = q_AnnotateClusters(sce = sce_CD4,
+                                       clusterList = annotation_CD4,
+                                       new_id = "cell_type")
+
+sce_CD4$cell_type = cluster_ids(sce_CD4,"cell_type")
+
+```
+
+```{r}
+
+annotation_CD8 = list("1. CD8 Naive" = c(1),
+                      "2. CD8 Pre-effector (TIGIT+)" = c(2),
+                      "3. CD8 EMRA (TIGIT+Tbet+)" = c(3),
+                      "4. CD8 EMRA (Tbet+)" = c(4),
+                      "5. NK-like CD16+ CD8 EMRA (TIGIT+Tbet+)" = c(5),
+                      "6. NK-like CD16+ CD8 EMRA (TIGIT+Tbet+Ki67+)" = c(6),
+                      "7. CD8 Pre-effector (TIGIT+)" = c(7),
+                      "8. CD8 Effector memory (Tbet+)"  = c(8),
+                      "9. CD8 Transitional memory (CCR4+TCF1+)" = c(9),
+                      "10. CD8 Transitional memory" = c(10),
+                      "11. CD8 Effector memory" = c(11),
+                      "12. CD8 Effector memory (CD39+)" = c(12),
+                      "13. CD8 Effector memory (Ki67+)" = c(13),
+                      "14. CD8 Transitional memory (TIGIT+TCF1+CD39+)" = c(14),
+                      "15. CD8 Effector memory" = c(15)
+                      )
+
+sce_CD8 = q_AnnotateClusters(sce = sce_CD8,
+                                       clusterList = annotation_CD8,
+                                       new_id = "cell_type")
+
+sce_CD8$cell_type = cluster_ids(sce_CD8,"cell_type")
+
+```
+
+```{r}
+
+annotation_CD4 = list("CD4 Naive" = c(1),
+                      "Treg" = c(2,10,14),
+                      "CD4 Memory" = c(3,4,5,6,7,8,9,11,12,13,15))
+
+sce_CD4 = q_AnnotateClusters(sce = sce_CD4,
+                                       clusterList = annotation_CD4,
+                                       new_id = "Naive_memory")
+
+sce_CD4$Naive_memory = cluster_ids(sce_CD4,"Naive_memory")
+
+
+annotation_CD8 = list("CD8 Naive" = c(1),
+                      "CD8 Memory" = c(2,3,4,5,6,7,8,9,10,11,12,13,14,15)
+                      )
+
+sce_CD8 = q_AnnotateClusters(sce = sce_CD8,
+                                       clusterList = annotation_CD8,
+                                       new_id = "Naive_memory")
+
+sce_CD8$Naive_memory = cluster_ids(sce_CD8,"Naive_memory")
+
+```
+
+
+```{r}
+
+pA = q_plotDR(q_DownsampleSCE(sce_CD4,10000),
+       color_by = "Naive_memory",
+       k_pal = c("grey50","grey80",CATALYST:::.cluster_cols[1:5][2]),
+       highlight_clust = c("CD4 Naive","CD4 Memory","Treg"))+
+  theme(legend.position = "none")
+
+pB = q_plotDR(q_DownsampleSCE(sce_CD8,10000),
+       color_by = "Naive_memory",
+       k_pal = c("grey50",CATALYST:::.cluster_cols[1:5][3]),
+       highlight_clust = c("CD8 Naive","CD8 Memory"))+
+  theme(legend.position = "none")+
+  xlim(c(-10,10))
+
+pB+pA+plot_layout(ncol=2,guides = "collect")+plot_annotation(tag_levels = "A")&
+    theme(plot.tag = element_text(face = 'bold'))
+ggsave(filename=glue("{dir_out}/SuppFig16.png"),height = 6,width = 12,units = "in")
+ggsave(filename=glue("{dir_out}/SuppFig16.tiff"),height = 6,width = 12,units = "in")
+ggsave(filename=glue("{dir_out}/SuppFig16.svg"),height = 6,width = 12,units = "in")
+
+
+```
+
+
+
+
+## 4) Save clustered data
+
+```{r}
+
+saveRDS(sce_CD4, glue("{dir_out}/sce_CD4.rds"))
+saveRDS(sce_CD8, glue("{dir_out}/sce_CD8.rds"))
+
+```
+
+## 5) Session info
+
+```{r Session info, message = TRUE}
+
+sessionInfo()
+
+```
+

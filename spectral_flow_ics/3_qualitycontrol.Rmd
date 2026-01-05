@@ -1,0 +1,130 @@
+---
+title: "Automatic Quality Control (PeacoQC)"
+author: "*Lisa Loksø Dietz*"
+date: "*`r format(Sys.time(), '%Y-%m-%d')`*"
+knit: (function(inputFile, encoding) { 
+      out_dir = paste0(dirname(getwd()),"/3_output");
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(out_dir, '3_QualityControl.html')) })
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    toc_collapsed: true
+    code_folding: show
+---
+
+```{r Markdown setup 1, include = FALSE}
+
+knitr::opts_chunk$set(fig.width=10, fig.height=7, out.width = "70%",fig.align = 'center', eval=TRUE) 
+
+```
+
+## 0) Load source code
+
+
+```{r Directories, message = FALSE, warning = FALSE}
+
+rm(list=ls())
+source("0_source.R")
+
+```
+
+
+## 1) Load data
+
+### 1.1) Import pregated flowSet
+
+The pregated flowSet is loaded: 
+
+```{r Importing FCS files, message = FALSE}
+
+fs_pregated = readRDS(file = glue("{dir_project}/2_pipeline/{folder_pregate}/out/FlowSet_pregated.rds"))
+
+```
+
+
+
+### 1.2) Import panel
+
+The panel is loaded: 
+
+```{r Panel, message = FALSE}
+
+panel = read.csv(file=glue("{dir_project}/2_pipeline/{folder_transform}/out/Panel.csv"))[,-1]
+kable(panel)
+
+```
+
+
+## 2) Quality control (PeacoQC)
+
+### 2.1) Find IT and MAD
+
+```{r Find IT and MAD values, warning = T, message=T}
+
+IT = 0.1
+MAD = 4 
+
+q_PeacoQC_FindParameters(fs_pregated,
+                         panel = panel,
+                         IT_val = IT,
+                         MAD_val = MAD,
+                         outdir = dir_tmp)
+
+
+```
+
+
+
+### 2.2) Perform QC
+
+
+```{r Save PeacoQC files, message = T}
+
+fs_clean = q_PeacoQC_RunQC(fs_pregated,
+                           panel = panel,
+                           IT_val = IT,
+                           MAD_val = MAD,
+                           outdir = dir_store)
+
+
+pData(fs_clean) = pData(fs_clean)[,c("sample_id","name")]
+
+pData(fs_clean)
+
+```
+
+### 2.3) Metadata
+
+```{r}
+
+pd = pData(fs_pregated)[,c("sample_id","sample_id2","date","batch","Trial","Condition","PID", "Visit","Stimulation","Viability")]
+
+fs_clean = q_MergeMetadataFlowSet(fs_clean, pd, "sample_id")
+
+pData(fs_clean) = pData(fs_clean)[,c("sample_id","sample_id2","date","batch","Trial","Condition","PID", "Visit","Stimulation","Viability", "name")]
+pData(fs_clean)
+
+```
+
+
+## 3) Save QC data
+
+```{r Save fs_clean, message = FALSE, eval = FALSE}
+
+saveRDS(fs_clean, file = glue("{dir_out}/FlowSet_clean.rds"))
+
+```
+
+## 4) Session info
+
+```{r Session info, message = TRUE}
+
+sessionInfo()
+
+```
+
+
