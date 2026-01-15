@@ -34,7 +34,7 @@ Create a working directory for the project and set it as your working directory.
 
 ```{bash}
 
-docker run --name fisher_garcia_frattari_naasz -p 8787:8787 -e PASSWORD=Vajolet -e DEFAULT_USER=rstudio -v '[PATH_TO_DATA]:/fisher_garcia_frattari_naasz_sc_analysis/data' -d fisher_garcia_frattari_naasz_25:published
+docker run --name fisher_garcia_frattari_naasz -p 8787:8787 -e PASSWORD=Vajolet -e DEFAULT_USER=rstudio -v '[PATH_TO_DATA]:/fisher_garcia_frattari_naasz_sc_analysis/data' -d gsf70/fisher_garcia_frattari_naasz_26:published
 
 ```
 
