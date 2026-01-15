@@ -31,7 +31,7 @@ Additional data used in the scripts, included for reproducibility:
 
 Files used by `renv` to recreate the same R environment.
 
-## docker_info
+### docker_info
 
 Instructions for setting up and running the analysis within the project's Docker container. The Dockerfile used to build the image can be found in the home directory and may also serve as a template for future builds.
 
