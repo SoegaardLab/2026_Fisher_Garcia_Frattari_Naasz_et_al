@@ -1,0 +1,16 @@
+# Core scientific stack
+numpy>=1.23
+scipy>=1.10
+pandas
+scikit-learn
+matplotlib
+seaborn
+
+# Leiden clustering
+python-igraph==0.11.8
+igraph==0.11.8
+leidenalg==0.10.2
+texttable==1.7.0
+
+# Scanpro package
+scanpro

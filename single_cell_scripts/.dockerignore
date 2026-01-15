@@ -1,0 +1,24 @@
+# Ignore environment files
+python/python_env/pipy_env/
+python/python_env/pipy_env_creation.R
+python/python_env/.Rhistory
+
+# Ignore project files
+ptc_paper.Rproj
+.Rprofile
+.Rhistory
+.Renviron
+.RData
+.Ruserdata
+.Rproj.user
+
+# Ignore renv files
+renv/library/
+renv/.gitignore
+
+# Ignore git files
+.gitignore
+.git/
+
+# Ignore docker info files
+docker_info
