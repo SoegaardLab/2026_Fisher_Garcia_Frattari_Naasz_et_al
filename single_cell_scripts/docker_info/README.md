@@ -4,6 +4,12 @@ Starting from a `rocker/rstudio` base container, we developed a Docker environme
 
 ## Requirements
 
+### System Requirements
+
+The container can be run on a desktop computer using Docker Desktop. OS-specific system requirements are described in the Docker documentation: https://docs.docker.com/desktop/. Importantly, installing Docker Desktop requires Administrator privileges, but running it does not.
+
+The analysis was run using Docker Desktop v28.4.0 on Windows 11 with 64 GB of RAM. While systems with lower memory may also work, at least 64 GB of RAM is recommended to ensure stable performance when running the entire pipeline, given the dataset size and the computational demands of some steps.
+
 ### Raw data
 
 Available for download through the European Genome-Phenome Archive (EGA), accession number [to be updated]. 
@@ -16,7 +22,20 @@ For each donor, create a directory named `aim_[IDXXX]_[vXX]` and containing:
 
 Collect all donor-specific directories into a single folder named `sc_data_by_donor`.
 
+To reproduce the original directory layout, create the following structure with `main_directory/` set as the working directory:
+
+```
+
+main_directory/
+└── raw_data/
+    └── single_cell_data/
+        └── sc_data_by_donor/
+
+```
+
 ### Docker image
+
+A Docker Desktop version compatible with your operating system can be downloaded from https://www.docker.com/products/docker-desktop/. OS-specific installation instructions are available at https://docs.docker.com/desktop/. After installation, open Docker Desktop to start the Docker engine.
 
 The Docker image can be built locally from the Dockerfile in the project's root directory, or pulled directly from Docker Hub:
 
@@ -30,7 +49,7 @@ docker pull gsf70/fisher_garcia_frattari_naasz_26:published
 
 ### Start the container
 
-Create a working directory for the project and set it as your working directory. Start the container from the local terminal using:
+With `main_directory/` set as the current working directory, start the container from a local terminal:
 
 ```{bash}
 
@@ -38,11 +57,11 @@ docker run --name fisher_garcia_frattari_naasz -p 8787:8787 -e PASSWORD=Vajolet 
 
 ```
 
-Once executed, this command launches a containerized RStudio Server instance locally. No internet connection is required.
+This command launches a containerized RStudio Server instance locally. No internet connection is required after the image has been pulled.
 
 The container name (`--name`), port (`-p`), and the RStudio Server username (`DEFAULT_USER`) and password (`PASSWORD`) can be customized, but all must be specified.
 
-`[PATH_TO_DATA]` refers to the full local path of the working directory. For example:
+`[PATH_TO_DATA]` refers to the full local path of the working directory. For example, on Windows:
 
 ```{bash}
 
@@ -50,7 +69,7 @@ The container name (`--name`), port (`-p`), and the RStudio Server username (`DE
 
 ```
 
-Since your terminal’s current working directory is the project directory (as set above), you can simply use:
+If the terminal is already in `main_directory/`, the relative path can be used:
 
 ```{bash}
 
@@ -74,8 +93,6 @@ source("R/utilities/structure_setup.R")
 
 ```
 
-After running this script, the directory `raw_data/single_cell_data/` will be created. Copy the `sc_data_by_donor` folder into this location.
-
 ### Ready to Start
 
 At this stage, the Docker image should be running, and the local directory structure should match the one expected by the scripts.
@@ -84,7 +101,7 @@ At this stage, the Docker image should be running, and the local directory struc
 
 All steps from raw data to final figures can be reproduced using the scripts in the `R`directory. 
 
-Begin with the scripts in `R/preprocessing`directory, which are numbered in running order (e.g., `R/preprocessing/01_object_generation.R` is the first).
+Begin with the scripts in `R/preprocessing/`directory, which are numbered in running order (e.g., `R/preprocessing/01_object_generation.R` is the first).
 
 **Note:** 
 To ensure full reproducibility and avoid environment conflicts, **empty the environment** and restart the **R session** between scripts. You can use the script `R/utilities/session_restart`to automate this:
