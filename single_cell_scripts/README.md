@@ -35,6 +35,10 @@ Files used by `renv` to recreate the same R environment.
 
 Instructions for setting up and running the analysis within the project's Docker container. The Dockerfile used to build the image can be found in the home directory and may also serve as a template for future builds.
 
+### data_access
+
+Contains the data access agreement necessary for requesting controlled access to the project's data through the European Genome-phenome Archive (EGA).
+
 ## Contact
 
 If you have any questions, would like further details, or wish to discuss any aspects of the analysis, feel free to start an issue or reach out at gs.frattari\@clin.au.dk
