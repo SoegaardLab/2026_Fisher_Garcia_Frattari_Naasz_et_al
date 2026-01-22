@@ -11,6 +11,7 @@ ptc_paper.Rproj
 .RData
 .Ruserdata
 .Rproj.user
+data_access/
 
 # Ignore renv files
 renv/library/
