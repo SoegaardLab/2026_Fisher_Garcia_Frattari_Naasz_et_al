@@ -24,6 +24,9 @@ RUN apt-get update && apt-get install -y \
     libglpk40 \
     make \
     g++ \
+    pkg-config \
+    libhdf5-dev \
+    gawk \
     && rm -rf /var/lib/apt/lists/*
 
 # Create project directory and make it writable ################################
@@ -38,6 +41,9 @@ WORKDIR /fisher_garcia_frattari_naasz_sc_analysis
 
 COPY renv.lock renv.lock
 RUN R -e "install.packages('renv'); renv::restore()"
+
+# Add hdf5r to read h5 files
+RUN R -e "renv::install('hdf5r')"
 
 # Python environment setup #####################################################
 

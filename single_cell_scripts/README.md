@@ -6,13 +6,15 @@ Scripts used to analyze single-cell sequencing data in the Fisher, Garcia, Fratt
 
 ### R
 
-Contains R-based scripts, organized into three subdirectories:
+Contains R-based scripts, organized into four subdirectories:
 
--   **utilities:** common functions used for data processing steps (`protein_coding_genes_extraction.R`, `qc_ambient_rna.R`, `object_processing_functions.R`), figure generation (`figure_utilities`), and Docker-based analysis (`structure_setup.R`, `session_restart.R`)
+-   **utilities:** common functions used for data processing (`protein_coding_genes_extraction.R`, `qc_ambient_rna.R`, `object_processing_functions.R`), figure generation (`figure_utilities`), and Docker-based analysis workflows (`structure_setup.R`, `session_restart.R`)
 
--   **preprocessing:** scripts for Seurat object generation, processing and analysis
+-   **preprocessing:** scripts for Seurat object generation, processing, and analysis
 
 -   **figures:** scripts used to generate the single-cell data figures
+
+-   **h5_pipeline:** alternative implementations of `01_object_generation.R`, `04_adt_dd.R`, and `qc_ambient_rna.R`, adapted to operate on HD5F matrices obtained from the European Genome-Phenome Archive (EGA).
 
 ### Python
 Contains Python-based scripts and information required to recreate the Python environment used in the analysis.

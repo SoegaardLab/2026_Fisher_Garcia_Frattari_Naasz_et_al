@@ -12,26 +12,17 @@ The analysis was run using Docker Desktop v28.4.0 on Windows 11 with 64 GB of RA
 
 ### Raw data
 
-Available for download through the European Genome-Phenome Archive (EGA), accession number [to be updated]. 
+Available for download through the European Genome-Phenome Archive (EGA), accession number [to be updated].
 
-For each donor, create a directory named `aim_[IDXXX]_[vXX]` and containing:
+Files should be named using the prefix `aim_[IDXXX]_[vXX]` where `IDXXX` denotes the donor identifier and `vXX` the visit number, followed by a suffix indicating the file type: 
 
--   a `raw_feature_bc_matrix`subdirectory
--   a `sample_filtered_feature_bc_matrix` subdirectory
--   a `filtered_contig_annotations` file
+-   `aim_[IDXXX]_[vXX]_raw_feature_bc_matrix.h5` for the raw count matrix
+-   `aim_[IDXXX]_[vXX]_sample_filtered_feature_bc_matrix.h5` for the filtered count matrix
+-   `aim_[IDXXX]_[vXX]_filtered_contig_annotations.csv` for the TCR contig annotations
 
-Collect all donor-specific directories into a single folder named `sc_data_by_donor`.
+All files should be placed in a single directory named `sc_data_by_donor`, located within a `main_directory/` that is set as the working directory.
 
-To reproduce the original directory layout, create the following structure with `main_directory/` set as the working directory:
-
-```
-
-main_directory/
-└── raw_data/
-    └── single_cell_data/
-        └── sc_data_by_donor/
-
-```
+If the `.rds` file has also been downloaded from the EGA, it should be placed in the `main_directory` and named `aim_final.rds`.
 
 ### Docker image
 
@@ -85,7 +76,7 @@ Open a web browser (e.g., Microsoft Edge or Firefox), navigate to `http://localh
 
 ### Set Up the Folder Structure
 
-The script `R/utilities/structure_setup.R` recreates the subdirectory structure within `Fisher_Garcia_Frattari_Naasz_et_al_2025` that was used to run the analysis pipeline. To execute it, open and run the script, or use the following command in the R console of RStudio:
+The script `R/utilities/structure_setup.R` recreates the subdirectory structure within the  `main_directory/` that was used to run the analysis pipeline. To execute it, open and run the script, or use the following command in the R console of RStudio:
 
 ```{r}
 
@@ -98,6 +89,8 @@ source("R/utilities/structure_setup.R")
 At this stage, the Docker image should be running, and the local directory structure should match the one expected by the scripts.
 
 ## Instructions for Use
+
+### Option 1: Run the Entire Pipeline
 
 All steps from raw data to final figures can be reproduced using the scripts in the `R`directory. 
 
@@ -112,4 +105,20 @@ source("R/utilities/session_restart.R")
 
 ```
 
-Running the complete pipeline is expected to take several hours on a standard desktop computer (approximately 2-3 hours if differential gene expression testing with MAST - performed at the end of `R/preprocessing/03_reclustering_and_annotation.R` - is skipped, otherwise longer).
+Running the complete pipeline is expected to take several hours on a standard desktop computer (approximately 2-3 hours if differential gene expression testing with MAST - performed at the end of `R/preprocessing/03_reclustering_and_annotation.R` - is skipped, otherwise longer). 
+
+### Option 2: Inspect the Final Results Directly
+
+If the `aim_final.rds` file has been downloaded, the scripts in `R/figures/` can be executed directly after the structure setup without running the full pipeline. To reproduce the figures, run the following commands in the R console:
+
+```{r}
+
+# Figures in the main text
+source("R/figures/figures.R")
+
+# Extended data and supplementary figures
+source("R/figures/extended_and_supplementary_figures.R")
+
+```
+
+Running this option typically takes 5-10 minutes on a standard desktop computer. The expected output of the demo is a set of figures identical to those presented in the manuscript, saved in `processed_data/results/figures/`.
