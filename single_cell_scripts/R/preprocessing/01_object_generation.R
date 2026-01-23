@@ -48,8 +48,8 @@ file.check <- function(sample.id){
   files <- paste0(raw_data,
                   sample.id,
                   c("/filtered_contig_annotations.csv",
-                    "/raw_feature_bc_matrix",
-                    "/sample_filtered_feature_bc_matrix"))
+                    "/raw_feature_bc_matrix.h5",
+                    "/sample_filtered_feature_bc_matrix.h5"))
   
   # Check that files are there
   all <- lapply(files, function(x) file.exists(x))
@@ -85,7 +85,7 @@ matrix.cleaner <- function(sample.id){
   ### Matrix generation --------------------------------------------------------
   
   # Read data
-  raw <- Read10X(paste0(data.slot, "raw_feature_bc_matrix/"))
+  raw <- Read10X_h5(paste0(data.slot, "raw_feature_bc_matrix.h5"))
   
   # If the matrix comes from an ADT experiment, keep only RNA data
   if(is.list(raw)){
@@ -98,7 +98,7 @@ matrix.cleaner <- function(sample.id){
     
   }
   
-  cells <- Read10X(paste0(data.slot, "sample_filtered_feature_bc_matrix/"))
+  cells <- Read10X_h5(paste0(data.slot, "sample_filtered_feature_bc_matrix.h5"))
   
   # If the matrix comes from an ADT experiment, keep only RNA data
   if(is.list(cells)){

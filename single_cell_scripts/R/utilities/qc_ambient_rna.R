@@ -53,7 +53,7 @@ for (seur.obj in aim){
   seur.obj$soup_group <- clust
   
   # Read raw matrix in
-  raw <- Read10X(paste0(data.slot, "/raw_feature_bc_matrix"))
+  raw <- Read10X_h5(paste0(data.slot, "/raw_feature_bc_matrix.h5"))
   
   # Keep only gene data if ADT assay also present
   if(is.list(raw)){
@@ -106,7 +106,7 @@ for (seur.obj in aim["aim_ID112_v01"]){
   seur.obj$soup_group <- clust
   
   # Read raw matrix in
-  raw <- Read10X(paste0(data.slot, "/raw_feature_bc_matrix"))
+  raw <- Read10X_h5(paste0(data.slot, "/raw_feature_bc_matrix.h5"))
   
   # Keep only gene data if ADT assay also present
   if(is.list(raw)){

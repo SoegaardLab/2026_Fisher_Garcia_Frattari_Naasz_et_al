@@ -51,9 +51,9 @@ matrix.cleaner <- function(sample.id){
   ## Matrix generation ---------------------------------------------------------
   
   # Read data in
-  raw <-  Read10X(paste0(data.slot, "raw_feature_bc_matrix/"))
+  raw <-  Read10X_h5(paste0(data.slot, "raw_feature_bc_matrix.h5"))
   
-  cells <- Read10X(paste0(data.slot, "sample_filtered_feature_bc_matrix/"))
+  cells <- Read10X_h5(paste0(data.slot, "sample_filtered_feature_bc_matrix.h5"))
   
   # Modify cell names to later match add.tcr
   name.changer <- function(mtx){
