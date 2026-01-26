@@ -12,7 +12,7 @@ The analysis was run using Docker Desktop v28.4.0 on Windows 11 with 64 GB of RA
 
 ### Raw data
 
-Available for download through the European Genome-Phenome Archive (EGA), accession number [to be updated].
+Available for download through the European Genome-Phenome Archive (EGA), accession number EGAS50000001570.
 
 Files should be named using the prefix `aim_[IDXXX]_[vXX]` where `IDXXX` denotes the donor identifier and `vXX` the visit number, followed by a suffix indicating the file type: 
 
