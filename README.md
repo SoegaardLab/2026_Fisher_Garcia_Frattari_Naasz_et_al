@@ -1,6 +1,6 @@
-# 2026 Fisher, Garcia, Frattari, Naasz, *et al*
+# 2026 Fisher, Garcia, Frattari, Naasz, Zhuo, *et al*
 
-Scripts used to analyze single-cell sequencing (`single_cell_scripts/`) and spectral flow cytometry-based intracellular cytokine staining (`spectral_flow_ics/`) data in the Fisher, Garcia, Frattari, Naasz, *et al* (2026) manuscript (https://doi.org/10.1038/s41590-026-02448-z).
+Scripts used to analyze single-cell sequencing (`single_cell_scripts/`) and spectral flow cytometry-based intracellular cytokine staining (`spectral_flow_ics/`) data in the Fisher, Garcia, Frattari, Naasz, Zhuo, *et al* (2026) manuscript (https://doi.org/10.1038/s41590-026-02448-z).
 
 ## Contact
 
